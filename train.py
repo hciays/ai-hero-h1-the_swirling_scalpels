@@ -35,7 +35,7 @@ if __name__ == "__main__":
     model = UNet()
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         monitor='val_iou',
-        mode='min',
+        mode='max',
         dirpath='checkpoints/',
         filename='best_model',
         save_top_k=1,
