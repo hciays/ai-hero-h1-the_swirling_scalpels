@@ -45,6 +45,7 @@ if __name__ == "__main__":
                          max_epochs=args.num_epochs,
                          precision="16-mixed",
                          benchmark=True,
+                         val_check_interval=0.5,
                          callbacks=checkpoint_callback)
     trainer = pl.Trainer(accelerator='cpu', devices=1, max_epochs=args.num_epochs, precision="16-mixed", benchmark=True)
 
