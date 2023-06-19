@@ -104,13 +104,13 @@ In this workspace you will develop your code, create your virtual environment, s
 Once you're logged in to HOREKA, your first step is going to your group workspace.
 For the following steps please substitute `<YOUR_GROUP_NAME>` by your group ID.
 
-    cd /hkfs/work/workspace/scratch/hgf_pdv3669-<YOUR_GROUP_NAME>
+    cd /hkfs/work/workspace/scratch/hgf_pdv3669-H1
 
 ### Clone the skeleton code
 
 Clone this repository to your workspace. 
 
-    cd /hkfs/work/workspace/scratch/hgf_pdv3669-<YOUR_GROUP_NAME>
+    cd /hkfs/work/workspace/scratch/hgf_pdv3669-H1
     git clone https://github.com/Helmholtz-AI-Energy/AI-HERO-2-Health.git
 
 ### Set up your environment
@@ -118,13 +118,13 @@ Clone this repository to your workspace.
 Follow the instructions to create a virtual environment. Optionally, you can install the requirements.txt from this repo if you want to build on it. You can choose the python version by simply adapting ```python3.9``` to your desired version.
 
 #### go to your workspace
-    cd /hkfs/work/workspace/scratch/hgf_pdv3669-<YOUR_GROUP_NAME>
+    cd /hkfs/work/workspace/scratch/hgf_pdv3669-H1
 
 #### create virtual environment
-    python3.9 -m venv health_baseline_env
-    source health_baseline_env/bin/activate
+    python3.9 -m venv health_h1
+    source health_h1/bin/activate
     pip install -U pip
-    pip install -r /hkfs/work/workspace/scratch/hgf_pdv3669-<YOUR_GROUP_NAME>/AI-HERO-Health/requirements.txt
+    pip install -r /hkfs/work/workspace/scratch/hgf_pdv3669-H1/ai-hero-h1-the_swirling_scalpels/requirements.txt
 
 
 # Training on HOREKA
