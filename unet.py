@@ -12,6 +12,7 @@ from acvl_utils.instance_segmentation.instance_as_semantic_seg import convert_se
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 from pathlib import Path
 import time
+from exporter import export_number_channels, export_batch_size
 
 
 class DoubleConvBlock(pl.LightningModule):
@@ -121,7 +122,7 @@ class UNet(pl.LightningModule):
                                       patience=self.max_epochs // 20,
                                       verbose=True,
                                       min_lr=3e-6)
-        #break_condition = 2 * self.max_epochs // 20 + 5
+        # break_condition = 2 * self.max_epochs // 20 + 5
 
         return {'optimizer': optimizer, 'scheduler': scheduler, 'monitor': "val_loss", }
 
@@ -132,33 +133,60 @@ class UNet(pl.LightningModule):
     def predict(self, batch, batch_index):
         return torch.argmax(self(batch), 1)
 
-    @torch.no_grad()
-    def predict_instance_segmentation_from_border_core(self, dataloader, preds: list, pred_dir='./preds'):
+    def predict_instance_segmentation_from_border_core(self, dataloader, pred_dir='./preds'):
+        self.eval()
+        with torch.no_grad():
 
-        for batch , _, _, file_name in dataloader:
-            # Pass the input tensor through the network to obtain the predicted output tensor
-            pred = torch.argmax(self(batch), 1)
+            for batch, _, _, file_name in dataloader:
+                # Pass the input tensor through the network to obtain the predicted output tensor
+                pred = torch.argmax(self(batch), 1)
 
-            for i in range(pred.shape[0]):
-                # convert to instance segmentation
-                instance_segmentation = convert_semantic_to_instanceseg_mp(
-                    np.array(pred[i].unsqueeze(0)).astype(np.uint8),
-                    spacing=(1, 1, 1), num_processes=12,
-                    isolated_border_as_separate_instance_threshold=15,
-                    small_center_threshold=30).squeeze()
+                for i in range(pred.shape[0]):
+                    # convert to instance segmentation
+                    instance_segmentation = convert_semantic_to_instanceseg_mp(
+                        np.array(pred[i].unsqueeze(0)).astype(np.uint8),
+                        spacing=(1, 1, 1), num_processes=12,
+                        isolated_border_as_separate_instance_threshold=15,
+                        small_center_threshold=30).squeeze()
 
-                # resize to size 256x256
-                resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
-                                                           interpolation=cv2.INTER_NEAREST)
-batch                # save file
-                save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
-                os.makedirs(save_dir, exist_ok=True)
-                tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
-                                 resized_instance_segmentation.astype(np.uint64))
+                    # resize to size 256x256
+                    resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
+                                                               interpolation=cv2.INTER_NEAREST)
+                    # save file
+                    save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
+                    os.makedirs(save_dir, exist_ok=True)
+                    tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
+                                     resized_instance_segmentation.astype(np.uint64))
 
+@torch.no_grad()
+def predict_instance_n(batch_n, preds, pred_dir='./preds'):
 
-def benchmark(model, input_shape=(32, 3, 512, 512), dtype='fp32', nwarmup=50, nruns=1000):
-    input_data = torch.randn(input_shape)
+    for (file_name, pred) in zip(batch_n, preds):
+        # Pass the input tensor through the network to obtain the predicted output tensor
+        # pred = torch.argmax(self(batch), 1)
+
+        for i in range(pred.shape[0]):
+            # convert to instance segmentation
+            instance_segmentation = convert_semantic_to_instanceseg_mp(
+                np.array(pred[i].unsqueeze(0)).astype(np.uint8),
+                spacing=(1, 1, 1), num_processes=12,
+                isolated_border_as_separate_instance_threshold=15,
+                small_center_threshold=30).squeeze()
+
+            # resize to size 256x256
+            resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
+                                                       interpolation=cv2.INTER_NEAREST)
+            # save file
+            save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
+            os.makedirs(save_dir, exist_ok=True)
+            tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
+                             resized_instance_segmentation.astype(np.uint64))
+def benchmark(model,
+              input_data,
+              input_shape=(export_batch_size(), export_number_channels(), 256, 256),
+              dtype='fp32',
+              nwarmup=50,
+              nruns=1000):
     input_data = input_data.to("cuda")
 
     # if dtype=='fp16':
@@ -183,20 +211,21 @@ def benchmark(model, input_shape=(32, 3, 512, 512), dtype='fp32', nwarmup=50, nr
 
     print("Input shape:", input_data.size())
     print('Average throughput: %.2f images/second' % (input_shape[0] / np.mean(timings)))
+    return pred_loc
 
 
 if __name__ == '__main__':
     import torch_tensorrt
 
     model = UNet().eval().to('cuda')
-    benchmark(model, input_shape=(1, 1, 224, 224), nruns=100)
+    benchmark(model, input_data=torch.randn((1, 1, 224, 224)),input_shape=(1, 1, 224, 224), nruns=100)
 
     if not Path("trt_ts_module.ts").exists():
         compiled_model = model.to_torchscript(file_path="model.pt", method="script", example_inputs=(1, 1, 224, 224))
         trt_model = torch_tensorrt.compile(compiled_model,
-            inputs = [torch_tensorrt.Input((1, 1, 224, 224))],
-            enabled_precisions = {torch.float, torch.half}  # Run with FP16
-        )
+                                           inputs=[torch_tensorrt.Input((1, 1, 224, 224))],
+                                           enabled_precisions={torch.float, torch.half}  # Run with FP16
+                                           )
         torch.jit.save(trt_model, "trt_ts_module.ts")
     else:
         trt_model = torch.jit.load("trt_ts_module.ts")
