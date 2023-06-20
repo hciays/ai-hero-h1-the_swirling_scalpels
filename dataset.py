@@ -8,10 +8,12 @@ import cv2
 
 
 class CellDataset(Dataset):
-    def __init__(self, root_dir, border_core=True, split="train", transform=None):
+    def __init__(self, root_dir, border_core=True, split="train", transform=None, local_test=False):
 
         self.transform = transform
         self.border_core = border_core
+
+        self.local_test = local_test
 
         root_dir = Path(root_dir)
         if split == "train":
@@ -60,7 +62,10 @@ class CellDataset(Dataset):
         if self.mask_files and not self.border_core:
             mask = mask.unsqueeze(0)
 
-        return img, mask if mask else 1, orig_size, file_name
+        if self.local_test:
+            return img, mask if mask is not None else 1, orig_size, file_name
+        else:
+            return img, mask if mask else 1, orig_size, file_name
 
     def __len__(self):
         return len(self.img_files)
