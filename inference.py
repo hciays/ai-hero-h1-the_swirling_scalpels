@@ -15,7 +15,7 @@ if __name__ == "__main__":
                         default='./lightning_logs/version_0/checkpoints/epoch=99-step=10000.ckpt')
     parser.add_argument("--pred_dir", default='./pred')
     parser.add_argument("--split", default="val", help="val=sequence c")
-    
+
     args = parser.parse_args()
 
     device = torch.device("cuda")

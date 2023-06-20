@@ -1,18 +1,18 @@
 #!/bin/bash
 
-#SBATCH --job-name=AI-HERO_health_baseline_evaluation
+#SBATCH --job-name=AI-HERO_health_evaluation_h1
 #SBATCH --partition=cpuonly
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=152
 #SBATCH --time=20:00:00
-#SBATCH --output=/home/hk-project-test-aihero2/hgf_pdv3669/baseline_evaluation.txt
+#SBATCH --output=/hkfs/work/workspace/scratch/hgf_pdv3669-H1/evaluation_h1.txt
 
 export CUDA_CACHE_DISABLE=1
 export OMP_NUM_THREADS=1
 
-group_workspace=/home/hk-project-test-aihero2/hgf_pdv3669
+group_workspace=/hkfs/work/workspace/scratch/hgf_pdv3669-H1
 
-source ${group_workspace}/health_baseline_env/bin/activate
-python ${group_workspace}/ai-hero2/eval.py --pred_dir ./pred
+source ${group_workspace}/health_h1/bin/activate
+python ${group_workspace}/ai-hero-h1-the_swirling_scalpels/eval.py --pred_dir ./pred
