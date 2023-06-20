@@ -2,6 +2,7 @@ import torch
 from dataset import CellDataset, val_transform
 from unet import UNet
 from argparse import ArgumentParser
+from utils_img import preprocessing
 
 
 if __name__ == "__main__":
@@ -15,6 +16,7 @@ if __name__ == "__main__":
                         default='./lightning_logs/version_0/checkpoints/epoch=99-step=10000.ckpt')
     parser.add_argument("--pred_dir", default='./pred')
     parser.add_argument("--split", default="val", help="val=sequence c")
+    parser.add_argument("--num_cpus", type=int, default=12)
 
     args = parser.parse_args()
 
