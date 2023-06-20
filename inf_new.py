@@ -7,17 +7,6 @@ from multiprocessing import Pool
 from unet import benchmark, predict_instance_n
 
 
-def postprocessing(dataloader, model):
-    files_names, pre_pred = [], []
-    for batch, _, _, file_name in dataloader:
-        # Pass the input tensor through the network to obtain the predicted output tensor
-        pred = torch.argmax(benchmark(model=model,input_data=batch), 1)
-        pred = post(pred)
-        files_names.append(file_name)
-        pre_pred.append(pred)
-    return pre_pred, files_names
-
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
@@ -46,11 +35,16 @@ if __name__ == "__main__":
     )
     if args.trt_path != "":
         model = torch.jit.load(args.trt_path)
-        f_n, pre = None, None
+        files_names, pre_pred = [], []
+        for batch, _, _, file_name in instance_seg_valloader:
+            pred = torch.argmax(benchmark(model=model, input_data=batch), 1)
+            files_names.append(file_name)
+            pre_pred.append(pred)
+        pre = None
         with Pool(args.num_cpus) as p:
-            f_n, pre = p.map(postprocessing, instance_seg_valloader, model)
+            pre = p.map(post, pred)
         # predict instances and save them in the pred_dir
-        predict_instance_n(batch_n=f_n, preds=pre, pred_dir=pred_dir)
+        predict_instance_n(batch_n=files_names, preds=pre, pred_dir=pred_dir)
 
     else:
         model = UNet()
