@@ -1,9 +1,11 @@
 from argparse import ArgumentParser
 import torch
+import torch._dynamo
 import pytorch_lightning as pl
 
 from dataset import CellDataset, train_transform, val_transform
 from unet import UNet
+
 
 
 if __name__ == "__main__":
@@ -14,26 +16,53 @@ if __name__ == "__main__":
         default="/hkfs/work/workspace/scratch/hgf_pdv3669-health_train_data/train",
     )
     parser.add_argument("--num_epochs", type=int, default=100)
-
+    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--local_test', type=bool, default=False)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--gpus', type=int, default=4)
+    parser.add_argument('--reproducibility', type=bool, default=True)
     args = parser.parse_args()
 
-    device = torch.device("cuda")
     root_dir = args.root_dir
+    print(root_dir)
+
+    torch._dynamo.config.verbose = True
 
     # Data
-    train_data = CellDataset(root_dir, split="train", transform=train_transform())
+    train_data = CellDataset(root_dir, split="train", transform=train_transform(), local_test=args.local_test)
     trainloader = torch.utils.data.DataLoader(
-        train_data, batch_size=16, shuffle=True, num_workers=12
+        train_data,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.workers,
+        pin_memory=torch.cuda.is_available(),
     )
-    val_data = CellDataset(root_dir, split="val", transform=val_transform())
+    val_data = CellDataset(root_dir, split="val", transform=val_transform(), local_test=args.local_test)
     valloader = torch.utils.data.DataLoader(
-        val_data, batch_size=16, shuffle=False, num_workers=12
+        val_data,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=torch.cuda.is_available()
     )
 
     # Initialize the model and trainer
     model = UNet()
-    trainer = pl.Trainer(accelerator='gpu', devices=1, max_epochs=args.num_epochs, precision="16-mixed", benchmark=True)
-
-    # Train the model   
+    if args.gpus == 1:
+        trainer = pl.Trainer(accelerator=args.device,
+                             devices=args.gpus,
+                             max_epochs=args.num_epochs,
+                             precision="16-mixed",
+                             benchmark=True)
+    else:
+        trainer = pl.Trainer(accelerator=args.device,
+                             max_epochs=args.num_epochs,
+                             precision="16-mixed",
+                             benchmark=True,
+                             devices=args.gpus,
+                             strategy="ddp",
+                             num_nodes=1)
+    # Train the model
     trainer.fit(model, trainloader, valloader)
 
