@@ -5,6 +5,3 @@ albumentations
 pytorch-lightning
 git+https://github.com/MIC-DKFZ/acvl_utils
 imagecodecs
-onnx
-tensorrt
-onnx-graphsurgeon

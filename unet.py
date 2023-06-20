@@ -22,7 +22,7 @@ class DoubleConvBlock(pl.LightningModule):
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)
 
-    @torch.compile(fullgraph=True)
+    #@torch.compile(fullgraph=True)
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(self.bn1(x))
@@ -37,7 +37,7 @@ class UpConvBlock(pl.LightningModule):
         self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
         self.conv = DoubleConvBlock(in_channels, out_channels)
 
-    @torch.compile(fullgraph=True)
+    #@torch.compile(fullgraph=True)
     def forward(self, x1, x2):
         x1 = self.up(x1)
         x = torch.cat([x2, x1], dim=1)
@@ -71,12 +71,14 @@ class UNet(pl.LightningModule):
         self.border_criterion = nn.SmoothL1Loss()
         self.cell_criterion = nn.SmoothL1Loss()
 
+        self.ce = nn.CrossEntropyLoss()
+
         self.epochs_wo_improvement = 0
 
         # Max Peochs
         self.max_epochs = max_epochs
 
-    @torch.compile(fullgraph=True)
+    #@torch.compile(fullgraph=True)
     def forward(self, x):
         enc1 = self.encoder1(x)
         enc2 = self.encoder2(F.max_pool2d(enc1, kernel_size=2, stride=2))
@@ -91,6 +93,8 @@ class UNet(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         inputs, labels, _, _ = batch
         outputs = self(inputs)
+        print(labels.shape)
+        #loss = self.border_criterion(cell_out,  labels[:,0,:,:]) + self.cell_criterion(border_out, labels[:,1,:,:])
         loss = self.ce(outputs, labels)
         self.log('train_loss', loss)
         return loss
@@ -98,10 +102,11 @@ class UNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, labels, _, _ = batch
         outputs = self(inputs)
+        #loss = self.border_criterion(outputs[0], labels[0]) + self.cell_criterion(outputs[1], labels[1])
         loss = self.ce(outputs, labels)
-        iou = self.iou(torch.argmax(outputs, 1), labels)
+        #iou = self.iou(torch.argmax(outputs, 1), labels)
         self.log('val_loss', loss, prog_bar=True, batch_size=16, sync_dist=True)
-        self.log('val_iou', iou, prog_bar=True, batch_size=16, sync_dist=True)
+        #self.log('val_iou', iou, prog_bar=True, batch_size=16, sync_dist=True)
 
     # def configure_optimizers(self):
     #    optimizer = optim.Adam(self.parameters(), lr=0.001)
@@ -135,7 +140,7 @@ class UNet(pl.LightningModule):
     @torch.no_grad()
     def predict_instance_segmentation_from_border_core(self, dataloader, preds: list, pred_dir='./preds'):
 
-        for batch , _, _, file_name in dataloader:
+        for batch, _, _, file_name in dataloader:
             # Pass the input tensor through the network to obtain the predicted output tensor
             pred = torch.argmax(self(batch), 1)
 
@@ -150,7 +155,7 @@ class UNet(pl.LightningModule):
                 # resize to size 256x256
                 resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
                                                            interpolation=cv2.INTER_NEAREST)
-batch                # save file
+                # save file
                 save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
                 os.makedirs(save_dir, exist_ok=True)
                 tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),

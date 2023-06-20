@@ -6,8 +6,6 @@ import pytorch_lightning as pl
 from dataset import CellDataset, train_transform, val_transform
 from unet import UNet
 
-
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
@@ -26,8 +24,6 @@ if __name__ == "__main__":
 
     root_dir = args.root_dir
     print(root_dir)
-
-    torch._dynamo.config.verbose = True
 
     # Data
     train_data = CellDataset(root_dir, split="train", transform=train_transform(), local_test=args.local_test)
@@ -49,12 +45,22 @@ if __name__ == "__main__":
 
     # Initialize the model and trainer
     model = UNet()
+    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+        monitor='val_loss',
+        mode='min',
+        filename='best_model',
+        save_top_k=1,
+    )
     if args.gpus == 1:
         trainer = pl.Trainer(accelerator=args.device,
                              devices=args.gpus,
                              max_epochs=args.num_epochs,
                              precision="16-mixed",
-                             benchmark=True)
+                             benchmark=True,
+                             callbacks=checkpoint_callback)
+        #opt_model = torch.compile(model)
+        # Train the model
+        trainer.fit(model, trainloader, valloader)
     else:
         trainer = pl.Trainer(accelerator=args.device,
                              max_epochs=args.num_epochs,
@@ -63,6 +69,5 @@ if __name__ == "__main__":
                              devices=args.gpus,
                              strategy="ddp",
                              num_nodes=1)
-    # Train the model
-    trainer.fit(model, trainloader, valloader)
-
+        # Train the model
+        trainer.fit(model, trainloader, valloader)
