@@ -15,8 +15,6 @@ if __name__ == "__main__":
                         default='./lightning_logs/version_0/checkpoints/epoch=99-step=10000.ckpt')
     parser.add_argument("--pred_dir", default='./pred')
     parser.add_argument("--split", default="val", help="val=sequence c")
-    parser.add_argument('--use_tensor_rt', action='store_true', default=True)
-    parser.add_argument('--version', type=int)
 
     args = parser.parse_args()
 
