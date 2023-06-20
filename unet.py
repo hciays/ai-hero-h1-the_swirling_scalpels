@@ -135,7 +135,7 @@ class UNet(pl.LightningModule):
     @torch.no_grad()
     def predict_instance_segmentation_from_border_core(self, dataloader, preds: list, pred_dir='./preds'):
 
-        for , _, _, file_name in dataloader:
+        for batch , _, _, file_name in dataloader:
             # Pass the input tensor through the network to obtain the predicted output tensor
             pred = torch.argmax(self(batch), 1)
 
