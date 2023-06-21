@@ -17,4 +17,4 @@ export CUDA_MODULE_LOADING=LAZY
 group_workspace=/hkfs/work/workspace/scratch/hgf_pdv3669-H1
 
 source ${group_workspace}/health_h1/bin/activate
-python ${group_workspace}/ai-hero-h1-the_swirling_scalpels/inference.py --from_checkpoint ./lightning_logs/version_3/checkpoints/epoch=99-step=10000.ckpt --pred_dir ./pred
+python ${group_workspace}/ai-hero-h1-the_swirling_scalpels/inference.py --from_checkpoint /hkfs/work/workspace/scratch/hgf_pdv3669-H1/ai-hero-h1-the_swirling_scalpels/lightning_logs/version_0/checkpoints/trt_ts_module.ts --pred_dir ./pred
