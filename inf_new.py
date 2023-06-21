@@ -10,7 +10,6 @@ import cv2
 from acvl_utils.instance_segmentation.instance_as_semantic_seg import convert_semantic_to_instanceseg
 import numpy as np
 import torch_tensorrt
-from numba import jit
 
 def predict_instance_n(predictions):
     file_name, preds, pred_dir = predictions
