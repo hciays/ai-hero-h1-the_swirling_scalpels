@@ -9,10 +9,9 @@ import tifffile
 import os
 from torchmetrics.classification import JaccardIndex as IoU
 from acvl_utils.instance_segmentation.instance_as_semantic_seg import convert_semantic_to_instanceseg_mp
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from pathlib import Path
 import time
-from exporter import export_number_channels, export_batch_size
 
 
 class DoubleConvBlock(pl.LightningModule):
@@ -94,8 +93,6 @@ class UNet(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         inputs, labels, _, _ = batch
         outputs = self(inputs)
-        print(labels.shape)
-        #loss = self.border_criterion(cell_out,  labels[:,0,:,:]) + self.cell_criterion(border_out, labels[:,1,:,:])
         loss = self.ce(outputs, labels)
         self.log('train_loss', loss)
         return loss
@@ -103,8 +100,8 @@ class UNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, labels, _, _ = batch
         outputs = self(inputs)
-        #loss = self.border_criterion(outputs[0], labels[0]) + self.cell_criterion(outputs[1], labels[1])
         loss = self.ce(outputs, labels)
+        #loss = self.border_criterion(outputs[:,1,:,:], mask_nn) + self.cell_criterion(outputs[:,0,:,:], mask_cell)
         #iou = self.iou(torch.argmax(outputs, 1), labels)
         self.log('val_loss', loss, prog_bar=True, batch_size=16, sync_dist=True)
         #self.log('val_iou', iou, prog_bar=True, batch_size=16, sync_dist=True)
@@ -129,7 +126,7 @@ class UNet(pl.LightningModule):
                                       min_lr=3e-6)
         # break_condition = 2 * self.max_epochs // 20 + 5
 
-        return {'optimizer': optimizer, 'scheduler': scheduler, 'monitor': "val_loss", }
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': "val_loss", }
 
         # if self.pochs_wo_improvement == break_condition:
         #    print(str(self.epochs_wo_improvement) + ' epochs without validation loss improvement --> break')
@@ -142,9 +139,9 @@ class UNet(pl.LightningModule):
         self.eval()
         with torch.no_grad():
 
-        for batch, _, _, file_name in dataloader:
-            # Pass the input tensor through the network to obtain the predicted output tensor
-            pred = torch.argmax(self(batch), 1)
+            for batch, _, _, file_name in dataloader:
+                # Pass the input tensor through the network to obtain the predicted output tensor
+                pred = torch.argmax(self(batch), 1)
 
                 for i in range(pred.shape[0]):
                     # convert to instance segmentation
@@ -161,34 +158,12 @@ class UNet(pl.LightningModule):
                     save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
                     os.makedirs(save_dir, exist_ok=True)
                     tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
-                                     resized_instance_segmentation.astype(np.uint64))
+                                     resized_instance_segmentation.astype(np.uint8))
 
-@torch.no_grad()
-def predict_instance_n(batch_n, preds, pred_dir='./preds'):
 
-    for (file_name, pred) in zip(batch_n, preds):
-        # Pass the input tensor through the network to obtain the predicted output tensor
-        # pred = torch.argmax(self(batch), 1)
-
-        for i in range(pred.shape[0]):
-            # convert to instance segmentation
-            instance_segmentation = convert_semantic_to_instanceseg_mp(
-                np.array(pred[i].unsqueeze(0)).astype(np.uint8),
-                spacing=(1, 1, 1), num_processes=12,
-                isolated_border_as_separate_instance_threshold=15,
-                small_center_threshold=30).squeeze()
-
-            # resize to size 256x256
-            resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
-                                                       interpolation=cv2.INTER_NEAREST)
-            # save file
-            save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
-            os.makedirs(save_dir, exist_ok=True)
-            tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
-                             resized_instance_segmentation.astype(np.uint64))
 def benchmark(model,
               input_data,
-              input_shape=(export_batch_size(), export_number_channels(), 256, 256),
+              input_shape=(1, 1, 256, 256),
               dtype='fp32',
               nwarmup=50,
               nruns=1000):
@@ -223,16 +198,16 @@ if __name__ == '__main__':
     import torch_tensorrt
 
     model = UNet().eval().to('cuda')
-    benchmark(model, input_data=torch.randn((1, 1, 224, 224)),input_shape=(1, 1, 224, 224), nruns=100)
+    benchmark(model, input_data=torch.randn((64, 1, 224, 224)), input_shape=(64, 1, 224, 224), nruns=100)
 
     if not Path("trt_ts_module.ts").exists():
         compiled_model = model.to_torchscript(file_path="model.pt", method="script", example_inputs=(1, 1, 224, 224))
         trt_model = torch_tensorrt.compile(compiled_model,
-                                           inputs=[torch_tensorrt.Input((1, 1, 224, 224))],
+                                           inputs=[torch_tensorrt.Input((64, 1, 224, 224))],
                                            enabled_precisions={torch.float, torch.half}  # Run with FP16
                                            )
         torch.jit.save(trt_model, "trt_ts_module.ts")
     else:
         trt_model = torch.jit.load("trt_ts_module.ts")
 
-    benchmark(trt_model, input_shape=(1, 1, 224, 224), nruns=100)
+    benchmark(trt_model, input_data=torch.randn((64, 1, 224, 224)), input_shape=(64, 1, 224, 224), nruns=100)

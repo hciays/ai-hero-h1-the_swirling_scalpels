@@ -4,19 +4,40 @@ from unet import UNet
 from argparse import ArgumentParser
 from utils_img import post
 from multiprocessing import Pool
-from unet import benchmark, predict_instance_n
+import tifffile
+import os
+import cv2
+from acvl_utils.instance_segmentation.instance_as_semantic_seg import convert_semantic_to_instanceseg
+import numpy as np
+import torch_tensorrt
+from numba import jit
 
+def predict_instance_n(predictions):
+    file_name, preds, pred_dir = predictions
 
-def postprocessing(dataloader, model):
-    files_names, pre_pred = [], []
-    for batch, _, _, file_name in dataloader:
-        # Pass the input tensor through the network to obtain the predicted output tensor
-        pred = torch.argmax(benchmark(model=model,input_data=batch), 1)
-        pred = post(pred)
-        files_names.append(file_name)
-        pre_pred.append(pred)
-    return pre_pred, files_names
+    preds = torch.argmax(preds, 1)
+    for i in range(preds.shape[0]):
+        # convert to instance segmentation
+        print(np.max(preds[i].numpy()).astype(np.uint8))
+        instance_segmentation = convert_semantic_to_instanceseg(
+            np.array(preds[i].numpy()).astype(np.uint8),
+            spacing=(1, 1, 1),
+            isolated_border_as_separate_instance_threshold=15,
+            small_center_threshold=30).squeeze()
+        #instance_segmentation = preds[i].astype(np.uint8)
+        # resize to size 256x256
+        resized_instance_segmentation = cv2.resize(instance_segmentation.astype(np.float32), (256, 256),
+                                                   interpolation=cv2.INTER_NEAREST)
+        # save file
+        save_dir, save_name = os.path.join(pred_dir, file_name[i].split('/')[0]), file_name[i].split('/')[1]
+        os.makedirs(save_dir, exist_ok=True)
+        tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
+                         resized_instance_segmentation.astype(np.uint8))
 
+def test(predictions):
+    file_name, preds = predictions
+    print(len(file_name), preds.shape)
+    return None
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -30,7 +51,8 @@ if __name__ == "__main__":
     parser.add_argument("--pred_dir", default='./pred')
     parser.add_argument("--split", default="val", help="val=sequence c")
     parser.add_argument("--num_cpus", type=int, default=12)
-    parser.add_argument("--trt_path", type=str, default="")
+    parser.add_argument("--imgsz", type=int, default=256)
+    parser.add_argument("--batch_size", type=int, default=64)
 
     args = parser.parse_args()
 
@@ -40,17 +62,24 @@ if __name__ == "__main__":
     split = args.split
     model = None
 
-    instance_seg_val_data = CellDataset(root_dir, split=split, transform=val_transform(), border_core=False)
+    instance_seg_val_data = CellDataset(root_dir, split=split, transform=val_transform(imgsz=args.imgsz), border_core=False, local_test=True)
     instance_seg_valloader = torch.utils.data.DataLoader(
-        instance_seg_val_data, batch_size=16, shuffle=False, num_workers=12
+        instance_seg_val_data, batch_size=args.batch_size, shuffle=False, num_workers=12, pin_memory=True
     )
-    if args.trt_path != "":
-        model = torch.jit.load(args.trt_path)
-        f_n, pre = None, None
-        with Pool(args.num_cpus) as p:
-            f_n, pre = p.map(postprocessing, instance_seg_valloader, model)
-        # predict instances and save them in the pred_dir
-        predict_instance_n(batch_n=f_n, preds=pre, pred_dir=pred_dir)
+    if args.from_checkpoint.endswith('.ts'):
+        model = torch.jit.load(args.from_checkpoint)
+        model.eval().to('cuda')
+        preds = []
+        with torch.no_grad():
+            for batch, _, _, file_name in instance_seg_valloader:
+                print(batch.shape)
+                batch = batch.to('cuda')
+                preds.append((file_name, model(batch).detach().cpu(), pred_dir))
+        del model
+        pre = None
+        with Pool(len(preds)) as p:
+            pre = p.map(predict_instance_n, preds)
+        #predict instances and save them in the pred_dir
 
     else:
         model = UNet()
@@ -58,5 +87,3 @@ if __name__ == "__main__":
         model.load_state_dict(checkpoint['state_dict'])
         # predict instances and save them in the pred_dir
         model.predict_instance_segmentation_from_border_core(instance_seg_valloader, pred_dir=pred_dir)
-
-

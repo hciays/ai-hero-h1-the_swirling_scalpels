@@ -23,7 +23,7 @@ if __name__ == "__main__":
     split = args.split
 
     model = UNet()
-    instance_seg_val_data = CellDataset(root_dir, split=split, transform=val_transform(), border_core=False)
+    instance_seg_val_data = CellDataset(root_dir, split=split, transform=val_transform(), border_core=False, local_test=True)
     instance_seg_valloader = torch.utils.data.DataLoader(
         instance_seg_val_data, batch_size=16, shuffle=False, num_workers=12
     )
