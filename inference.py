@@ -52,7 +52,7 @@ if __name__ == "__main__":
                         default='./lightning_logs/version_0/checkpoints/epoch=99-step=10000.ckpt')
     parser.add_argument("--pred_dir", default='./pred')
     parser.add_argument("--split", default="val", help="val=sequence c")
-    parser.add_argument("--num_cpus", type=int, default=12)
+    parser.add_argument("--num_cpus", type=int, default=150)
     parser.add_argument("--imgsz", type=int, default=256)
     parser.add_argument("--batch_size", type=int, default=64)
 
