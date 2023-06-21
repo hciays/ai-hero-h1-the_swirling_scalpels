@@ -46,8 +46,8 @@ if __name__ == "__main__":
     # Initialize the model and trainer
     model = UNet()
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        monitor='val_loss',
-        mode='min',
+        monitor='val_iou',
+        mode='max',
         filename='best_model',
         save_top_k=1,
     )

@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --ntasks=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=152
 #SBATCH --time=20:00:00
 #SBATCH --output=/hkfs/work/workspace/scratch/hgf_pdv3669-H1/training_h1.txt

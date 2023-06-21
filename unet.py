@@ -68,15 +68,7 @@ class UNet(pl.LightningModule):
         self.iou = IoU(task='multiclass', num_classes=3)
 
         # Loss
-        self.border_criterion = nn.SmoothL1Loss()
-        self.cell_criterion = nn.SmoothL1Loss()
-
         self.ce = nn.CrossEntropyLoss()
-
-        self.epochs_wo_improvement = 0
-
-        # Max Peochs
-        self.max_epochs = max_epochs
 
     #@torch.compile(fullgraph=True)
     def forward(self, x):
@@ -101,39 +93,14 @@ class UNet(pl.LightningModule):
         inputs, labels, _, _ = batch
         outputs = self(inputs)
         loss = self.ce(outputs, labels)
-        #loss = self.border_criterion(outputs[:,1,:,:], mask_nn) + self.cell_criterion(outputs[:,0,:,:], mask_cell)
-        #iou = self.iou(torch.argmax(outputs, 1), labels)
+        iou = self.iou(torch.argmax(outputs, 1), labels)
         self.log('val_loss', loss, prog_bar=True, batch_size=16, sync_dist=True)
-        #self.log('val_iou', iou, prog_bar=True, batch_size=16, sync_dist=True)
-
-    # def configure_optimizers(self):
-    #    optimizer = optim.Adam(self.parameters(), lr=0.001)
-    #    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
-    #    return [optimizer], [scheduler]
+        self.log('val_iou', iou, prog_bar=True, batch_size=16, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(),
-                               lr=8e-4,
-                               betas=(0.9, 0.999),
-                               eps=1e-08,
-                               weight_decay=0,
-                               amsgrad=True)
-        scheduler = ReduceLROnPlateau(optimizer,
-                                      mode='min',
-                                      factor=0.25,
-                                      patience=self.max_epochs // 20,
-                                      verbose=True,
-                                      min_lr=3e-6)
-        # break_condition = 2 * self.max_epochs // 20 + 5
-
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': "val_loss", }
-
-        # if self.pochs_wo_improvement == break_condition:
-        #    print(str(self.epochs_wo_improvement) + ' epochs without validation loss improvement --> break')
-        #    break
-
-    def predict(self, batch, batch_index):
-        return torch.argmax(self(batch), 1)
+        optimizer = optim.Adam(self.parameters(), lr=0.001)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+        return [optimizer], [scheduler]
 
     def predict_instance_segmentation_from_border_core(self, dataloader, pred_dir='./preds'):
         self.eval()
@@ -159,55 +126,3 @@ class UNet(pl.LightningModule):
                     os.makedirs(save_dir, exist_ok=True)
                     tifffile.imwrite(os.path.join(save_dir, save_name.replace('.tif', '_256.tif')),
                                      resized_instance_segmentation.astype(np.uint8))
-
-
-def benchmark(model,
-              input_data,
-              input_shape=(1, 1, 256, 256),
-              dtype='fp32',
-              nwarmup=50,
-              nruns=1000):
-    input_data = input_data.to("cuda")
-
-    # if dtype=='fp16':
-    #    input_data = input_data.half()
-
-    print("Warm up ...")
-    with torch.no_grad():
-        for _ in range(nwarmup):
-            features = model(input_data)
-    torch.cuda.synchronize()
-    print("Start timing ...")
-    timings = []
-    with torch.no_grad():
-        for i in range(1, nruns + 1):
-            start_time = time.time()
-            pred_loc = model(input_data)
-            torch.cuda.synchronize()
-            end_time = time.time()
-            timings.append(end_time - start_time)
-            if i % 10 == 0:
-                print('Iteration %d/%d, avg batch time %.2f ms' % (i, nruns, np.mean(timings) * 1000))
-
-    print("Input shape:", input_data.size())
-    print('Average throughput: %.2f images/second' % (input_shape[0] / np.mean(timings)))
-    return pred_loc
-
-
-if __name__ == '__main__':
-    import torch_tensorrt
-
-    model = UNet().eval().to('cuda')
-    benchmark(model, input_data=torch.randn((64, 1, 224, 224)), input_shape=(64, 1, 224, 224), nruns=100)
-
-    if not Path("trt_ts_module.ts").exists():
-        compiled_model = model.to_torchscript(file_path="model.pt", method="script", example_inputs=(1, 1, 224, 224))
-        trt_model = torch_tensorrt.compile(compiled_model,
-                                           inputs=[torch_tensorrt.Input((64, 1, 224, 224))],
-                                           enabled_precisions={torch.float, torch.half}  # Run with FP16
-                                           )
-        torch.jit.save(trt_model, "trt_ts_module.ts")
-    else:
-        trt_model = torch.jit.load("trt_ts_module.ts")
-
-    benchmark(trt_model, input_data=torch.randn((64, 1, 224, 224)), input_shape=(64, 1, 224, 224), nruns=100)
