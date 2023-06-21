@@ -111,7 +111,7 @@ For the following steps please substitute `<YOUR_GROUP_NAME>` by your group ID.
 Clone this repository to your workspace. 
 
     cd /hkfs/work/workspace/scratch/hgf_pdv3669-H1
-    git clone https://github.com/Helmholtz-AI-Energy/AI-HERO-2-Health.git
+    git clone https://github.com/hciays/ai-hero-h1-the_swirling_scalpels.git
 
 ### Set up your environment
 
