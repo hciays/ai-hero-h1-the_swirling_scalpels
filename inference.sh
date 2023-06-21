@@ -12,6 +12,7 @@
 
 export CUDA_CACHE_DISABLE=1
 export OMP_NUM_THREADS=1
+export CUDA_MODULE_LOADING=LAZY
 
 group_workspace=/hkfs/work/workspace/scratch/hgf_pdv3669-H1
 
