@@ -1,5 +1,12 @@
 # ai-hero-h1-the_swirling_scalpels
 
+
+
+### Zenodo link 
+
+10.5281/zenodo.8064003
+
+
 AI-HERO 2 Health Challenge on energy efficient AI - Instance Segmentation of growing cells in time-lapsed sequences
 =============================================================================================
 

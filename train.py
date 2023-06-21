@@ -14,10 +14,10 @@ if __name__ == "__main__":
         default="/hkfs/work/workspace/scratch/hgf_pdv3669-health_train_data/train",
     )
     parser.add_argument("--num_epochs", type=int, default=100)
-    parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--workers", type=int, default=32)
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--local_test', type=bool, default=False)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--local_test', type=bool, default=True)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--gpus', type=int, default=4)
     parser.add_argument('--reproducibility', type=bool, default=True)
     args = parser.parse_args()
