@@ -3,8 +3,7 @@
 
 
 ### Zenodo link 
-
-10.5281/zenodo.8064003
+[10.5281/zenodo.8064003](https://zenodo.org/record/8064003)
 
 
 AI-HERO 2 Health Challenge on energy efficient AI - Instance Segmentation of growing cells in time-lapsed sequences
