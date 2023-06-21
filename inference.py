@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument("--split", default="val", help="val=sequence c")
     parser.add_argument("--num_cpus", type=int, default=150)
     parser.add_argument("--imgsz", type=int, default=256)
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=8)
 
     args = parser.parse_args()
 
